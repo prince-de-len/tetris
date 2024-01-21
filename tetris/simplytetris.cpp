@@ -1,11 +1,10 @@
-﻿#include <iostream>
+#include <iostream>
 #include <windows.h>
 #include <cstdlib>
 #include <ctime>
 #include <cstdio>
 #include <cstring>
 #pragma comment(lib, "winmm.lib")
-
 
 using namespace std;
 
@@ -18,9 +17,16 @@ const char c_figure = 219;
 const char c_field = 176;
 const char c_figure_down = 178;
 
+int score = 0;
+int speed = 10;
+int level = 1;
+
+bool isMusicPlaying1 = false;
+bool isMusicPlaying2 = false;
+bool isMusicPlaying3 = false;
+
 typedef char TScreenMap[screen_height][screen_width];
 typedef char TFieldMap[field_height][field_width];
-
 
 char* shapeArray[] = {
     (char*)".....**..**.....", // квадрат
@@ -31,9 +37,7 @@ char* shapeArray[] = {
     (char*)".....**.**......", // Z
     (char*)"**...**........." }; // S
 
-
 const int shapeArrayCounter = sizeof(shapeArray) / sizeof(shapeArray[0]);
-
 
 const int shape_width = 4;
 const int shape_height = 4;
@@ -68,7 +72,6 @@ public:
         cout << scr[0];
     }
 };
-
 
 class TField {
 public:
@@ -169,12 +172,14 @@ void TGame::Show() {
 void TGame::Move() {
     static int tick = 0;
     ++tick;
-    if (tick >= 5) {
+    if (tick >= speed) {
         if (!figure.Move(0, 1)) {  // новая фигура
             figure.Put(field.field);
             figure.Shape(shapeArray[rand() % shapeArrayCounter]);
             figure.Pos(field_width / 2 - shape_width / 2, 0);
             if (figure.Check() > 0) {
+                speed = 10;
+                score = 0;
                 field.Clear();
             }
         }
@@ -189,7 +194,6 @@ void TFigure::Put(TScreenMap& scr) {
         scr[coord[index].Y][coord[index].X * 2] = scr[coord[index].Y][coord[index].X * 2 + 1] = c_figure;
     }
 }
-
 
 void TFigure::Put(TFieldMap& field) { // заполняем игровое поле по коорд. фигуры
     for (int index = 0; index < coordinateCount; ++index) {
@@ -275,39 +279,46 @@ void TFigure::CalcCoord() {
 
 
 void TField::Put(TScreenMap& scr) {
-    for (int x_field_width = 0; x_field_width < field_width; ++x_field_width) {
-        for (int y_field_height = 0; y_field_height < field_height; ++y_field_height) {
-            scr[y_field_height][x_field_width * 2] = scr[y_field_height][x_field_width * 2 + 1] = field[y_field_height][x_field_width]; //x2
+    for (int coordinate_field_width = 0; coordinate_field_width < field_width; ++coordinate_field_width) {
+        for (int coordinate_field_height = 0; coordinate_field_height < field_height; ++coordinate_field_height) {
+            scr[coordinate_field_height][coordinate_field_width * 2] = scr[coordinate_field_height][coordinate_field_width * 2 + 1] = field[coordinate_field_height][coordinate_field_width]; //x2
         }
     }
 }
 
 void TField::Burning() {
-    for (int y_field_height = field_height - 1; y_field_height >= 0; --y_field_height) { // проходим по всему полю снизу вверх
+    for (int coordinate_field_height = field_height - 1; coordinate_field_height >= 0; --coordinate_field_height) { // проходим по всему полю снизу вверх
         static bool fillLine;
         fillLine = true;
-        for (int x_field_width = 0; x_field_width < field_width; ++x_field_width) { // ищем заполненную строку
-            if (field[y_field_height][x_field_width] != c_figure_down) {
+        for (int coordinate_field_width = 0; coordinate_field_width < field_width; ++coordinate_field_width) { // ищем заполненную строку
+            if (field[coordinate_field_height][coordinate_field_width] != c_figure_down) {
                 fillLine = false;
             }
         }
         if (fillLine) {
-            for (int position_figure_y = y_field_height; position_figure_y >= 1; --position_figure_y) {
-
+            for (int position_figure_y = coordinate_field_height; position_figure_y >= 1; --position_figure_y) {
+                
                 memcpy(field[position_figure_y], field[position_figure_y - 1], sizeof(field[position_figure_y]));
+            }
+            ++score;
+            if (3 <= score && score <= 6) {
+                speed = 2;
+            }
+            if (score >= 6) {
+                speed = 1;
             }
             //return;
         }
     }
 
-    for (int y_field_height = field_width - 1; y_field_height >= 0; --y_field_height) { // проходим по всему полю снизу вверх
+    for (int coordinate_field_height = field_width - 1; coordinate_field_height >= 0; --coordinate_field_height) { // проходим по всему полю снизу вверх
 
         static bool fillColumn;
         fillColumn = true;
 
-        for (int x_field_width = 0; x_field_width <= 10; ++x_field_width) { // ищем заполненную строку
+        for (int coordinate_field_width = 0; coordinate_field_width <= 10; ++coordinate_field_width) { // ищем заполненную строку
 
-            if (field[y_field_height][x_field_width] != c_figure_down) {
+            if (field[coordinate_field_height][coordinate_field_width] != c_figure_down) {
                 fillColumn = false;
             }
 
@@ -329,27 +340,52 @@ void TField::Burning() {
 
 
 int main() {
-
+    int new_speed = 0;
     HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
     COORD size = { 50, 30 }; 
     SetConsoleScreenBufferSize(console, size);
 
-    SMALL_RECT rect = { 0, 0, 50, 30 }; 
-    SetConsoleWindowInfo(console, TRUE, &rect);
-
-
-    PlaySound(TEXT("TetrisMusic.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
     char command[1000]; 
 
-
     srand(time(0));
-    TGame game;
-    while (1) {
 
+    TGame game;
+
+    while (1) {
+        if (speed == 10 && !isMusicPlaying1) {
+            level = 1;
+
+            PlaySound(TEXT("TetrisMusic1.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
+
+            isMusicPlaying1 = true;
+        }
+
+        if (speed == 2 && !isMusicPlaying2) {
+            level = 2;
+
+            PlaySound(TEXT("TetrisMusic2.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
+
+            isMusicPlaying2 = true;
+            isMusicPlaying1 = false;
+
+        }
+        if (speed == 1 && !isMusicPlaying3) {
+            level = 3;
+
+            PlaySound(TEXT("TetrisMusic3.wav"), NULL, SND_FILENAME | SND_ASYNC | SND_LOOP);
+
+            isMusicPlaying3 = true;
+            isMusicPlaying1 = false;
+
+        }
         game.PlayerControl();
         game.Move();
         game.Show();
-        if (GetKeyState(VK_ESCAPE) < 0) break;
+        if (GetKeyState(VK_ESCAPE) < 0) {
+            break;
+        }
+        cout << " Score: " << score << endl;
+        cout << "Level: " << level << endl;
         Sleep(50);
     }
 
